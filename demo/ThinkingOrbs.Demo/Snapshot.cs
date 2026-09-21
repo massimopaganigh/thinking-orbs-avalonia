@@ -13,13 +13,13 @@ namespace ThinkingOrbs.Demo;
 
 internal static class Snapshot
 {
-    public static void Write(string dir, double t)
+    public static void Write(string dir, double t, Color? ink)
     {
         Directory.CreateDirectory(dir);
         ThinkingOrb.FrozenTime = t;
         foreach (var theme in (ReadOnlySpan<OrbTheme>)[OrbTheme.Dark, OrbTheme.Light])
         {
-            var sheet = BuildSheet(theme);
+            var sheet = BuildSheet(theme, ink);
             sheet.Measure(Avalonia.Size.Infinity);
             sheet.Arrange(new Rect(sheet.DesiredSize));
             var px = new PixelSize((int)sheet.DesiredSize.Width, (int)sheet.DesiredSize.Height);
@@ -32,7 +32,7 @@ internal static class Snapshot
         ThinkingOrb.FrozenTime = null;
     }
 
-    private static Control BuildSheet(OrbTheme theme)
+    private static Control BuildSheet(OrbTheme theme, Color? ink)
     {
         var grid = new WrapPanel { Width = 3 * 180, Orientation = Orientation.Horizontal };
         foreach (var state in Enum.GetValues<OrbState>())
@@ -40,11 +40,12 @@ internal static class Snapshot
             var cell = new StackPanel { Width = 180, Margin = new Thickness(0, 0, 0, 24) };
             cell.Children.Add(new ThinkingOrb
             {
-                State = state, Size = OrbSize.Px64, ThemeMode = theme, HorizontalAlignment = HorizontalAlignment.Center
+                State = state, Size = OrbSize.Px64, ThemeMode = theme, Ink = ink,
+                HorizontalAlignment = HorizontalAlignment.Center
             });
             cell.Children.Add(new ThinkingOrb
             {
-                State = state, Size = OrbSize.Px20, ThemeMode = theme, Margin = new Thickness(0, 12, 0, 0),
+                State = state, Size = OrbSize.Px20, ThemeMode = theme, Ink = ink, Margin = new Thickness(0, 12, 0, 0),
                 HorizontalAlignment = HorizontalAlignment.Center
             });
             cell.Children.Add(new TextBlock

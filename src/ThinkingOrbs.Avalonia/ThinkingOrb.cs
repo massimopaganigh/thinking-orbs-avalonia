@@ -57,6 +57,14 @@ public class ThinkingOrb : Control
     public static readonly StyledProperty<bool> IsPausedProperty =
         AvaloniaProperty.Register<ThinkingOrb, bool>(nameof(IsPaused));
 
+    /// <summary>
+    /// Paint the dots in this colour instead of monochrome ink. Null — the
+    /// default — keeps the tuned grayscale, which is the only mode the
+    /// upstream library has and the only one <see cref="ThemeMode"/> affects.
+    /// </summary>
+    public static readonly StyledProperty<Color?> InkProperty =
+        AvaloniaProperty.Register<ThinkingOrb, Color?>(nameof(Ink));
+
     public OrbState State
     {
         get => GetValue(StateProperty);
@@ -87,6 +95,12 @@ public class ThinkingOrb : Control
         set => SetValue(IsPausedProperty, value);
     }
 
+    public Color? Ink
+    {
+        get => GetValue(InkProperty);
+        set => SetValue(InkProperty, value);
+    }
+
     // --- the shared clock -------------------------------------------------
     // All instances read one stopwatch, so several orbs on screen stay in
     // phase, and one timer drives them all.
@@ -109,7 +123,7 @@ public class ThinkingOrb : Control
 
     static ThinkingOrb()
     {
-        AffectsRender<ThinkingOrb>(StateProperty, SizeProperty, ThemeModeProperty, SpeedProperty);
+        AffectsRender<ThinkingOrb>(StateProperty, SizeProperty, ThemeModeProperty, SpeedProperty, InkProperty);
         AffectsMeasure<ThinkingOrb>(SizeProperty);
     }
 
@@ -184,31 +198,48 @@ public class ThinkingOrb : Control
             _ => ActualThemeVariant == ThemeVariant.Dark
         };
 
+        var tint = Ink;
+
         // lines first, so nodes sit on top of their edges
         foreach (var l in frame.Lines)
-            context.DrawLine(new ImmutablePen(Ink(l.White, l.A, dark), l.W),
+            context.DrawLine(new ImmutablePen(Brush(l.White, l.A, dark, tint), l.W),
                 new Point(l.X1, l.Y1), new Point(l.X2, l.Y2));
 
         foreach (var d in frame.Dots)
-            context.DrawEllipse(Ink(d.White, d.A, dark), null, new Point(d.X, d.Y), d.R, d.R);
+            context.DrawEllipse(Brush(d.White, d.A, dark, tint), null, new Point(d.X, d.Y), d.R, d.R);
     }
 
-    // Matte grayscale ink. On dark substrates the value is mirrored
-    // (1 - white) so near dots read bright — the same depth language on an
-    // inverted substrate.
-    private static readonly Dictionary<int, ImmutableSolidColorBrush> Brushes = [];
+    // ponytail: unbounded cache. It holds one entry per distinct painted
+    // colour — 256 alphas per tint in practice. Cap it if someone animates
+    // the tint continuously.
+    private static readonly Dictionary<uint, ImmutableSolidColorBrush> Brushes = [];
 
-    private static ImmutableSolidColorBrush Ink(double white, double alpha, bool dark)
+    /// <summary>
+    /// Matte ink for one mark. Monochrome is the tuned original: on dark
+    /// substrates the value is mirrored (1 - white) so near dots read bright,
+    /// the same depth language on an inverted substrate.
+    ///
+    /// A tint keeps that depth ramp and spends it on opacity instead.
+    /// `white` is the ink value (0 = fullest ink), so 1 - white is how present
+    /// the dot is, and that reads the same on either substrate — which is why
+    /// a tint ignores the theme: you picked the colour for your background.
+    /// </summary>
+    private static ImmutableSolidColorBrush Brush(double white, double alpha, bool dark, Color? tint)
     {
         var w = Math.Min(1, Math.Max(0, white));
-        var g = (byte)Engine.JsRound((dark ? 1 - w : w) * 255);
-        var a = (byte)Engine.JsRound(Math.Min(1, Math.Max(0, alpha)) * 255);
-        var key = (a << 8) | g;
+        var a = Math.Min(1, Math.Max(0, alpha));
+        var colour = tint is { } c
+            ? Color.FromArgb((byte)Engine.JsRound(a * (1 - w) * 255), c.R, c.G, c.B)
+            : Gray((byte)Engine.JsRound((dark ? 1 - w : w) * 255), (byte)Engine.JsRound(a * 255));
+
+        var key = colour.ToUInt32();
         if (Brushes.TryGetValue(key, out var brush)) return brush;
-        brush = new ImmutableSolidColorBrush(Color.FromArgb(a, g, g, g));
+        brush = new ImmutableSolidColorBrush(colour);
         Brushes[key] = brush;
         return brush;
     }
+
+    private static Color Gray(byte g, byte a) => Color.FromArgb(a, g, g, g);
 
     // --- reduced motion ---------------------------------------------------
 

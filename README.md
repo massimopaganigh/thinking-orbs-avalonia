@@ -54,11 +54,33 @@ Nine verbs an agent can be doing, each a distinct animation:
 | `ThemeMode` | `OrbTheme` | `Auto` | `Auto` follows `ActualThemeVariant`; `Dark`/`Light` pin it. Not called `Theme` — that name belongs to Avalonia's `ControlTheme` on `StyledElement`. |
 | `Speed` | `double` | `1` | Multiplier on the preset's baked speed. |
 | `IsPaused` | `bool` | `false` | Freeze on the current frame. |
+| `Ink` | `Color?` | `null` | A tint. `null` keeps the tuned monochrome. |
 
-Strictly monochrome: light ink for dark backgrounds, dark ink for light ones.
-`Auto` resolves through Avalonia's own theme variant, so an app-level or
-control-level `RequestedThemeVariant` — including the platform default — flows
-straight through and the orb repaints on a live switch.
+By default strictly monochrome, as upstream: light ink for dark backgrounds,
+dark ink for light ones. `Auto` resolves through Avalonia's own theme variant,
+so an app-level or control-level `RequestedThemeVariant` — including the
+platform default — flows straight through and the orb repaints on a live
+switch.
+
+## Colour
+
+```xml
+<orbs:ThinkingOrb State="Searching" Ink="#E8590C" />
+```
+
+Depth in these animations is carried by ink weight: `white` is the ink value
+per dot, 0 being the fullest ink. Monochrome spends that on luminance, and has
+to mirror it per theme so near dots read bright on a dark substrate and dark on
+a light one.
+
+A tint spends the same ramp on **opacity** instead — the dot is painted in your
+colour at `1 - white`, so it composites to the same depth reading over whatever
+is behind it. That is why `ThemeMode` does not apply to a tint: one orange
+works on both substrates, because you already picked it for your background.
+Hue stays constant, so the mark still reads as one object receding, which
+interpolating between two colours would not give you.
+
+Set it back to `null` for monochrome.
 
 ## Accessibility & behaviour
 
@@ -87,6 +109,8 @@ the pair at the top of this file is produced:
 ```
 dotnet run --project demo/ThinkingOrbs.Demo -- --snapshot docs 0.6
 ```
+
+A fourth argument tints them: `--snapshot out 0.6 "#E8590C"`.
 
 ## Fidelity
 
