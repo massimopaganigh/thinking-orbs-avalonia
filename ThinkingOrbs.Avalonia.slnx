@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/demo/">
+    <Project Path="demo/ThinkingOrbs.Demo/ThinkingOrbs.Demo.csproj" />
+  </Folder>
+  <Folder Name="/golden/">
+    <Project Path="golden/ThinkingOrbs.Golden/ThinkingOrbs.Golden.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/ThinkingOrbs.Avalonia/ThinkingOrbs.Avalonia.csproj" />
+  </Folder>
+</Solution>
