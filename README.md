@@ -9,6 +9,14 @@ The geometry is a one-for-one transcription of the web engine, verified against
 the library's own `spec/orbs-golden.json` — 72 cases, 70,855 values, matching
 to 1e-4 with one documented exception (below).
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/orbs-dark-t0.6.png">
+  <img alt="The nine states, each at 64 and 20 px, frozen at t=0.6" src="docs/orbs-light-t0.6.png">
+</picture>
+
+Both sheets are rendered by the port itself — see Projects below — so they go
+stale the moment the geometry does.
+
 ## Use
 
 ```xml
@@ -73,10 +81,11 @@ straight through and the orb repaints on a live switch.
 - `golden/ThinkingOrbs.Golden` — the fidelity check.
   `dotnet run --project golden/ThinkingOrbs.Golden`
 
-Contact sheets, at a pinned instant, without opening a window:
+Contact sheets, at a pinned instant, without opening a window. This is also how
+the pair at the top of this file is produced:
 
 ```
-dotnet run --project demo/ThinkingOrbs.Demo -- --snapshot out 0.6
+dotnet run --project demo/ThinkingOrbs.Demo -- --snapshot docs 0.6
 ```
 
 ## Fidelity
