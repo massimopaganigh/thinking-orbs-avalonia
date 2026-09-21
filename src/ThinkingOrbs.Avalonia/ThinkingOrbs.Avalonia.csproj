@@ -10,8 +10,13 @@
     <PackageId>ThinkingOrbs.Avalonia</PackageId>
     <Description>Dotted thought-orb loading indicators for Avalonia. Port of thinking-orbs by Jakub Antalik.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>avalonia;spinner;loading;indicator;animation</PackageTags>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="12.1.2" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 </Project>

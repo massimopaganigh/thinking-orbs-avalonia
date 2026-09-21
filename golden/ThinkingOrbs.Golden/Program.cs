@@ -41,16 +41,34 @@ Console.WriteLine($"spec {root.GetProperty("specVersion").GetString()} " +
 // (CPython, Windows libm) reproduces this port's numbers exactly, which is
 // what rules out a transcription error.
 //
-// The budget below is pinned: a change in these counts, in either
-// direction, fails the run like any other regression.
+// Because the deciding factor is the host libm, the budget is per-platform:
+// .NET's Math.Sin/Cos go to the C runtime, so glibc, Apple's libm and the
+// UCRT need not agree with each other either. A platform with a recorded
+// budget is pinned — a change in these counts, in either direction, fails
+// the run like any other regression. A platform without one passes and
+// prints the line to paste in, so the first CI run on it is green and
+// tells you the numbers instead of guessing them here.
+//
 //   solving-20-3.3: two coincident dots (same x, y, z to 1 ulp) swap draw
 //                   order — 4 values, visually nothing.
 //   solving-20-5.1: three dots of thirty sit in a different band.
-var knownDivergences = new Dictionary<string, int>
+var divergenceBudgets = new Dictionary<string, Dictionary<string, int>>
 {
-    ["solving-20-3.3"] = 4,
-    ["solving-20-5.1"] = 65
+    ["windows"] = new()
+    {
+        ["solving-20-3.3"] = 4,
+        ["solving-20-5.1"] = 65
+    }
 };
+
+var platform = OperatingSystem.IsWindows() ? "windows"
+    : OperatingSystem.IsMacOS() ? "macos"
+    : OperatingSystem.IsLinux() ? "linux"
+    : "other";
+var recorded = divergenceBudgets.TryGetValue(platform, out var budget) ? budget : null;
+// Cases allowed to drift at all. Only rubik at 20px qualifies; everything
+// else must match on every platform, recorded or not.
+var knownDivergences = recorded ?? divergenceBudgets["windows"];
 
 var states = Enum.GetValues<OrbState>().ToDictionary(s => s.ToString().ToLowerInvariant());
 var failures = new List<string>();
@@ -153,12 +171,28 @@ void Near(string what, double got, double want)
                      $"(delta {Math.Abs(got - want).ToString("G4", CultureInfo.InvariantCulture)})");
 }
 
-var unexpected = perCase.Where(kv => knownDivergences.GetValueOrDefault(kv.Key) != kv.Value).ToList();
-var missing = knownDivergences.Where(kv => !perCase.ContainsKey(kv.Key)).ToList();
+// Anything outside the drift-allowed set is a plain failure on every
+// platform. Inside it, a recorded platform is pinned to the exact count and
+// an unrecorded one just reports what it saw.
+var unexpected = perCase
+    .Where(kv => !knownDivergences.ContainsKey(kv.Key) ||
+                 (recorded != null && recorded.GetValueOrDefault(kv.Key) != kv.Value))
+    .ToList();
+var missing = recorded?.Where(kv => !perCase.ContainsKey(kv.Key)).ToList() ?? [];
 
-foreach (var (k, v) in knownDivergences.OrderBy(kv => kv.Key))
-    if (perCase.GetValueOrDefault(k) == v)
-        Console.WriteLine($"known libm divergence: {k} ({v} values) — see the note in Program.cs");
+foreach (var (k, _) in knownDivergences.OrderBy(kv => kv.Key))
+{
+    var seen = perCase.GetValueOrDefault(k);
+    if (seen != 0)
+        Console.WriteLine($"known libm divergence on {platform}: {k} ({seen} values) — see the note in Program.cs");
+}
+
+if (recorded == null)
+    Console.WriteLine($"no recorded budget for {platform}; to pin it, add to divergenceBudgets:" +
+                      Environment.NewLine +
+                      $"    [\"{platform}\"] = new() {{ " +
+                      string.Join(", ", knownDivergences.Keys.OrderBy(k => k)
+                          .Select(k => $"[\"{k}\"] = {perCase.GetValueOrDefault(k)}")) + " },");
 
 if (unexpected.Count == 0 && missing.Count == 0)
 {
@@ -169,7 +203,7 @@ if (unexpected.Count == 0 && missing.Count == 0)
 Console.Error.WriteLine($"FAIL — over {cases} cases / {checkedValues} values");
 foreach (var f in failures) Console.Error.WriteLine("  " + f);
 foreach (var (k, v) in unexpected.OrderByDescending(kv => kv.Value))
-    Console.Error.WriteLine($"  {k}: {v} mismatches (expected {knownDivergences.GetValueOrDefault(k)})");
+    Console.Error.WriteLine($"  {k}: {v} mismatches (expected {recorded?.GetValueOrDefault(k) ?? 0})");
 foreach (var (k, v) in missing)
     Console.Error.WriteLine($"  {k}: now matches exactly — the {v}-value divergence is gone, update the budget");
 return 1;

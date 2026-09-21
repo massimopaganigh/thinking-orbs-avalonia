@@ -1,0 +1,49 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to pack (e.g. 0.1.0)'
+        required: true
+
+jobs:
+  pack:
+    # Windows is the platform whose divergence budget is recorded, so the
+    # release gate runs the golden check where it is pinned.
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Resolve version
+        id: v
+        shell: bash
+        run: echo "version=${{ inputs.version || github.ref_name }}" | sed 's/=v/=/' >> "$GITHUB_OUTPUT"
+
+      - run: dotnet build -c Release
+
+      - name: Golden vectors
+        run: dotnet run --project golden/ThinkingOrbs.Golden -c Release --no-build
+
+      - name: Pack
+        run: dotnet pack src/ThinkingOrbs.Avalonia -c Release --no-build -o artifacts -p:Version=${{ steps.v.outputs.version }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nupkg
+          path: artifacts/*.nupkg
+
+      # Pushing is opt-in: without the secret the job still builds, checks and
+      # publishes the artifact, so a tag is never blocked on credentials.
+      - name: Push to NuGet
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        if: env.NUGET_API_KEY != ''
+        run: dotnet nuget push "artifacts/*.nupkg" -s https://api.nuget.org/v3/index.json -k "$env:NUGET_API_KEY" --skip-duplicate

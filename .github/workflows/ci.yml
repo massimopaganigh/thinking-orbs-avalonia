@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    # The golden check compares numbers that come out of Math.Sin/Cos, and
+    # .NET hands those to the platform C runtime — so the three runners are
+    # three different libms, not three copies of the same run. That is the
+    # point of the matrix here, not just "does it compile".
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - run: dotnet build -c Release
+
+      - name: Golden vectors
+        run: dotnet run --project golden/ThinkingOrbs.Golden -c Release --no-build
+
+      # The golden check covers the numbers; this covers the draw path —
+      # brushes, alpha, stroke widths, antialiasing — which no vector
+      # comparison can reach. Windows only: the other runners have no
+      # display for the platform backend to render into.
+      - name: Contact sheets
+        if: runner.os == 'Windows'
+        run: dotnet run --project demo/ThinkingOrbs.Demo -c Release --no-build -- --snapshot artifacts/snapshots 0.6
+
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'Windows'
+        with:
+          name: contact-sheets
+          path: artifacts/snapshots/*.png

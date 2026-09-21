@@ -41,9 +41,13 @@ public class ThinkingOrb : Control
     public static readonly StyledProperty<OrbSize> SizeProperty =
         AvaloniaProperty.Register<ThinkingOrb, OrbSize>(nameof(Size), OrbSize.Px64);
 
-    /// <summary>Theme mode; <see cref="OrbTheme.Auto"/> follows the host.</summary>
-    public static readonly StyledProperty<OrbTheme> ThemeProperty =
-        AvaloniaProperty.Register<ThinkingOrb, OrbTheme>(nameof(Theme));
+    /// <summary>
+    /// Which substrate to ink for; <see cref="OrbTheme.Auto"/> follows the
+    /// host. Named ThemeMode because StyledElement.Theme is Avalonia's
+    /// ControlTheme and must not be shadowed.
+    /// </summary>
+    public static readonly StyledProperty<OrbTheme> ThemeModeProperty =
+        AvaloniaProperty.Register<ThinkingOrb, OrbTheme>(nameof(ThemeMode));
 
     /// <summary>Multiplier on top of the preset's baked speed.</summary>
     public static readonly StyledProperty<double> SpeedProperty =
@@ -65,10 +69,10 @@ public class ThinkingOrb : Control
         set => SetValue(SizeProperty, value);
     }
 
-    public OrbTheme Theme
+    public OrbTheme ThemeMode
     {
-        get => GetValue(ThemeProperty);
-        set => SetValue(ThemeProperty, value);
+        get => GetValue(ThemeModeProperty);
+        set => SetValue(ThemeModeProperty, value);
     }
 
     public double Speed
@@ -105,7 +109,7 @@ public class ThinkingOrb : Control
 
     static ThinkingOrb()
     {
-        AffectsRender<ThinkingOrb>(StateProperty, SizeProperty, ThemeProperty, SpeedProperty);
+        AffectsRender<ThinkingOrb>(StateProperty, SizeProperty, ThemeModeProperty, SpeedProperty);
         AffectsMeasure<ThinkingOrb>(SizeProperty);
     }
 
@@ -173,7 +177,7 @@ public class ThinkingOrb : Control
         var t = ReducedMotion ? 0.6 : (_frozenAt ?? Now) * baseSpeed * Speed;
         var frame = Modes.Frames[mode](size, t, opts);
 
-        var dark = Theme switch
+        var dark = ThemeMode switch
         {
             OrbTheme.Dark => true,
             OrbTheme.Light => false,

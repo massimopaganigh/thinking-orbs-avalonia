@@ -40,11 +40,11 @@ internal static class Snapshot
             var cell = new StackPanel { Width = 180, Margin = new Thickness(0, 0, 0, 24) };
             cell.Children.Add(new ThinkingOrb
             {
-                State = state, Size = OrbSize.Px64, Theme = theme, HorizontalAlignment = HorizontalAlignment.Center
+                State = state, Size = OrbSize.Px64, ThemeMode = theme, HorizontalAlignment = HorizontalAlignment.Center
             });
             cell.Children.Add(new ThinkingOrb
             {
-                State = state, Size = OrbSize.Px20, Theme = theme, Margin = new Thickness(0, 12, 0, 0),
+                State = state, Size = OrbSize.Px20, ThemeMode = theme, Margin = new Thickness(0, 12, 0, 0),
                 HorizontalAlignment = HorizontalAlignment.Center
             });
             cell.Children.Add(new TextBlock
