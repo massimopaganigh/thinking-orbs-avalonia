@@ -1,9 +1,9 @@
-// The nine mode painters, ported one-for-one from `src/engine/`:
+﻿// The nine mode painters, ported one-for-one from `src/engine/`:
 // orbits.ts, lattice.ts (globe / rubik / wave), web.ts, braid.ts,
 // ribbon.ts (ribbon + ring via the faceOn flag) and morph.ts.
 //
 // Each returns a finished frame: a z-sorted, radius-clamped draw list.
-// Nothing here reads a rendering surface — the same numbers drive the
+// Nothing here reads a rendering surface â€” the same numbers drive the
 // Avalonia control and the golden-vector check.
 
 namespace ThinkingOrbs;
@@ -22,12 +22,12 @@ public static class Modes
         [ModeKey.Web] = Web,
         [ModeKey.Braid] = Braid,
         [ModeKey.Ribbon] = Ribbon,
-        // ring shares ribbon's geometry — the `faceOn` profile flag switches it
+        // ring shares ribbon's geometry â€” the `faceOn` profile flag switches it
         [ModeKey.Ring] = Ribbon,
         [ModeKey.Morph] = Morph
     };
 
-    // --- Orbits: particles on tilted orbits — "working" ------------------
+    // --- Orbits: particles on tilted orbits â€” "working" ------------------
     // No nucleus (the tuned preset runs coreless): just ghost paths and the
     // particles doing the work.
 
@@ -48,7 +48,7 @@ public static class Modes
         var partR = o.Get("partR", 1.2);
         var partRDepth = o.Get("partRDepth", 1.6);
 
-        // orbits: each a tilted circle — a ghost path + running particles
+        // orbits: each a tilted circle â€” a ghost path + running particles
         for (var orb = 0; orb < orbitN; orb++)
         {
             var h1 = Engine.HashD(orb, 1.7);
@@ -104,7 +104,7 @@ public static class Modes
         return Engine.FinalizeFrame(dots, [], o.Get("rMin", 0.3));
     }
 
-    // --- Globe: lat/long field, a scan meridian sweeps — "searching" -----
+    // --- Globe: lat/long field, a scan meridian sweeps â€” "searching" -----
 
     public static OrbFrame Globe(double size, double t, ModeOpts o)
     {
@@ -176,7 +176,7 @@ public static class Modes
     private static (double[] Amount, int Active) SolveCycle(double time, int count, double slotDur, double rest)
     {
         var cyc = 2 * count * slotDur + rest;
-        var tc = time % cyc; // JS `%` is fmod — exact; t - floor(t/c)*c is not
+        var tc = time % cyc; // JS `%` is fmod â€” exact; t - floor(t/c)*c is not
         var amount = new double[count];
         var active = -1;
         if (tc < 2 * count * slotDur)
@@ -270,7 +270,7 @@ public static class Modes
                     cosLat * Math.Cos(lon), sinLat, cosLat * Math.Sin(lon), moves, amount, active);
                 pt(x, y, z, out var px, out var py, out var zr);
                 var depth = (zr + 1) / 2;
-                // the band being turned inks a touch darker — the "hand"
+                // the band being turned inks a touch darker â€” the "hand"
                 dots.Add(new Dot
                 {
                     X = px, Y = py, Z = zr,
@@ -283,13 +283,13 @@ public static class Modes
         return Engine.FinalizeFrame(dots, [], o.Get("rMin", 0.3));
     }
 
-    // --- Wave: a waveform rolls through the rings — "listening" ----------
+    // --- Wave: a waveform rolls through the rings â€” "listening" ----------
 
     public static OrbFrame Wave(double size, double t, ModeOpts o)
     {
         var cx = size / 2;
         var cy = size / 2;
-        // 0.76 base x 1.15 — the undulation pulls the sphere inward, so wave
+        // 0.76 base x 1.15 â€” the undulation pulls the sphere inward, so wave
         // read ~15% smaller than the other lattice modes; scaled up to match
         var R = size / 2 * 0.874;
         var pt = Engine.MakeProj(t * 0.18, 0.38, cx, cy, 1);
@@ -305,7 +305,7 @@ public static class Modes
             var lat = -Math.PI / 2 + (double)ri / rings * Math.PI;
             var cosLat = Math.Cos(lat);
             var sinLat = Math.Sin(lat);
-            // two waves, different tempi — organic, never quite repeating
+            // two waves, different tempi â€” organic, never quite repeating
             var w = 0.62 * Math.Sin(t * 2.1 - ri * 0.52) + 0.38 * Math.Sin(t * 1.27 + ri * 0.83);
             var rr = R * (0.88 + 0.105 * w);
             var lonCount = (int)Math.Max(1, Engine.JsRound(Math.Abs(cosLat) * lonDensity));
@@ -328,7 +328,7 @@ public static class Modes
         return Engine.FinalizeFrame(dots, [], o.Get("rMin", 0.3));
     }
 
-    // --- Web: a constellation wires itself — "connecting" ----------------
+    // --- Web: a constellation wires itself â€” "connecting" ----------------
     // Nodes drift on the sphere under slow value noise; any pair closer than
     // `thr` grows an edge, and bright packets run along re-picked node pairs.
 
@@ -426,7 +426,7 @@ public static class Modes
         return Engine.FinalizeFrame(dots, lines, o.Get("rMin", 0.3));
     }
 
-    // --- Braid: three strands plait around the sphere — "weaving" --------
+    // --- Braid: three strands plait around the sphere â€” "weaving" --------
 
     public static OrbFrame Braid(double size, double t, ModeOpts o)
     {
@@ -460,7 +460,7 @@ public static class Modes
                 var surf = Math.Sqrt(Math.Max(0, 1 - u * u));
                 var endFade = Math.Min(1, (1 - Math.Abs(u)) / 0.1);
                 var a = u * Math.PI * turns + phase;
-                // radial breathing: strands trade places — the over/under of a plait
+                // radial breathing: strands trade places â€” the over/under of a plait
                 var weave = 1 + 0.075 * Math.Sin(u * Math.PI * turns * 2 + phase * 2 + t * 0.8);
                 var rr = surf * R * weave;
                 pt(Math.Cos(a) * rr, u * R * weave, Math.Sin(a) * rr, out var px, out var py, out var zr);
@@ -477,9 +477,9 @@ public static class Modes
         return Engine.FinalizeFrame(dots, [], o.Get("rMin", 0.3));
     }
 
-    // --- Ribbon: an undulating sash rides a great circle — "composing" ---
+    // --- Ribbon: an undulating sash rides a great circle â€” "composing" ---
     // The same painter drives "breathing" (ring) via the `faceOn` flag: a
-    // face-on circle whose radius — not its out-of-plane offset — undulates.
+    // face-on circle whose radius â€” not its out-of-plane offset â€” undulates.
 
     public static OrbFrame Ribbon(double size, double t, ModeOpts o)
     {
@@ -541,7 +541,7 @@ public static class Modes
             {
                 var a = (double)k / segs * 2 * Math.PI;
                 // the undulation: two traveling waves along the band; wobMul
-                // scales the deformation — 0 is a clean band
+                // scales the deformation â€” 0 is a clean band
                 var wob = (0.16 * Math.Sin(a * 3 - t * 1.7 + w * 0.22) + 0.07 * Math.Sin(a * 5 + t * 1.1)) * wobMul;
                 // A normal-direction wobble is cancelled by the re-normalisation
                 // below: the point lands back on the sphere, so the silhouette is
@@ -569,7 +569,7 @@ public static class Modes
         return Engine.FinalizeFrame(dots, [], o.Get("rMin", 0.3));
     }
 
-    // --- Morph: a dotted outline circle -> triangle -> square — "shaping" -
+    // --- Morph: a dotted outline circle -> triangle -> square â€” "shaping" -
     // Each shape is a continuous closed path parameterised by arc length
     // (top-centre start, clockwise). Every frame blends the two neighbouring
     // paths, then lays the dots EVENLY along the blended outline.
@@ -626,7 +626,7 @@ public static class Modes
     private const double Seg = Hold + MorphDur;
 
     // Tuned in inkform, which paints this through a blur + threshold "goo"
-    // filter; we draw plain circles instead. The dot GEOMETRY is identical —
+    // filter; we draw plain circles instead. The dot GEOMETRY is identical â€”
     // don't "correct" the softer edge by shrinking the radius.
     public static OrbFrame Morph(double size, double t, ModeOpts o)
     {

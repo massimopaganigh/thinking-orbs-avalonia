@@ -6,8 +6,8 @@ Nine hand-tuned animated states, each shipped at two purpose-tuned sizes, drawn
 as plain circle fills on an Avalonia `Control`.
 
 The geometry is a one-for-one transcription of the web engine, verified against
-the library's own `spec/orbs-golden.json` — 72 cases, 70,855 values, matching to
-1e-4 with two documented exceptions (below).
+the library's own `spec/orbs-golden.json` — 72 cases, 70,855 values, matching
+to 1e-4 with one documented exception (below).
 
 ## Use
 
@@ -82,13 +82,22 @@ dotnet run --project demo/ThinkingOrbs.Demo -- --snapshot out 0.6
 ## Fidelity
 
 `spec/orbs-golden.json` and `spec/orbs-spec.json` are the upstream spec files
-(spec 1.0.0, thinking-orbs 0.3.1). The checker compares the resolved presets and
-then every dot and line, in draw order, at four timestamps per (state × size).
+(spec 1.0.0, thinking-orbs 0.3.1). The checker compares the resolved presets,
+then checks each frame at four timestamps per (state × size): that it is
+z-sorted, and that it holds the same dots as the golden, matched by value
+within 1e-4. Lines are compared in order — nothing sorts them, so their
+sequence is deterministic.
 
-Two divergences are known, pinned and expected — the run fails if either one
-changes:
+It deliberately does **not** pin the exact draw sequence. What the painter
+promises is far-to-near; between dots at the same depth — `ring` is face-on,
+so its whole band sits at one z — the order is whatever the sort happened to
+leave, and one ulp of difference in the host `libm` reshuffles it without
+moving a pixel. Pinning the sequence made macOS fail on `breathing` while
+drawing an identical picture. A dot in the wrong place still fails: changing a
+radius by 0.01% is caught.
 
-- `solving-20` at t=3.3 (4 values) and t=5.1 (65 values), **on Windows**.
+One divergence is real and pinned: **`solving-20` at t=5.1, 3 unmatched dots
+out of 30, on Windows**.
 
 The cause is in the source algorithm, not in the transcription. `rubik` decides
 band membership with a hard test (`coord < lo || coord >= hi`), and at the 20px
@@ -97,16 +106,16 @@ boundary at zero. One ulp of difference in `cos`/`sin` therefore decides which
 side of a turning band a dot sits on. An independent third implementation
 (CPython on the Windows libm) reproduces this port's numbers exactly, which is
 what rules out a transcription error; matching V8 bit-for-bit would mean
-shipping V8's libm. In practice: at t=3.3 two coincident dots swap draw order,
-and at t=5.1 three dots out of thirty sit in a different band of a 20×20 px
-spinner mid-scramble.
+shipping V8's libm. In practice, three dots of a 20×20 px spinner sit in a
+different band at some instants mid-scramble.
 
-For the same reason the budget is recorded per platform: glibc, Apple's libm
-and the UCRT need not agree with each other either. Only these two `rubik`
-cases are allowed to drift at all — everything else must match everywhere. A
-platform with no recorded budget passes and prints the line to paste into
-`divergenceBudgets`, so the first CI run on it reports the numbers instead of
-this file guessing them.
+Because the deciding factor is the host libm, the count is recorded per
+platform — glibc, Apple's libm and the UCRT need not agree with each other
+either. A recorded platform is pinned (more *or* fewer fails the run); an
+unrecorded one passes and prints the line to paste into `divergenceBudgets`,
+so its first CI run reports the number instead of this file guessing it. Only
+the two `rubik` 20px cases may drift at all; everywhere else a single
+unmatched dot fails on every platform.
 
 Two notes on the raster, inherited from the upstream port work: dots below a
 pixel across are rasterised slightly differently by Skia than by a browser

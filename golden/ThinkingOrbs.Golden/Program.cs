@@ -31,9 +31,9 @@ Console.WriteLine($"spec {root.GetProperty("specVersion").GetString()} " +
                   $"(thinking-orbs {root.GetProperty("sourceLibrary").GetProperty("version").GetString()}), " +
                   $"tolerance {tolerance}");
 
-// Two cases cannot be matched bit-for-bit by any runtime that does not
-// ship V8's libm, and the reason is in the source algorithm rather than in
-// this port. `rubik` decides band membership with a hard test
+// One case cannot be matched by any runtime that does not ship V8's libm,
+// and the reason is in the source algorithm rather than in this port.
+// `rubik` decides band membership with a hard test
 // (coord < lo || coord >= hi); at the 20px lattice — 5 latitude rings, 12
 // longitudes — quarter-turned coordinates land 3.7e-33 and 2.2e-17 away
 // from the boundary at 0, so one ulp of difference in cos/sin decides which
@@ -41,24 +41,19 @@ Console.WriteLine($"spec {root.GetProperty("specVersion").GetString()} " +
 // (CPython, Windows libm) reproduces this port's numbers exactly, which is
 // what rules out a transcription error.
 //
-// Because the deciding factor is the host libm, the budget is per-platform:
-// .NET's Math.Sin/Cos go to the C runtime, so glibc, Apple's libm and the
-// UCRT need not agree with each other either. A platform with a recorded
-// budget is pinned — a change in these counts, in either direction, fails
-// the run like any other regression. A platform without one passes and
-// prints the line to paste in, so the first CI run on it is green and
-// tells you the numbers instead of guessing them here.
-//
-//   solving-20-3.3: two coincident dots (same x, y, z to 1 ulp) swap draw
-//                   order — 4 values, visually nothing.
-//   solving-20-5.1: three dots of thirty sit in a different band.
+// Only these cases may differ at all. Anywhere else, a single unmatched dot
+// fails the run on every platform.
+string[] driftAllowed = ["solving-20-3.3", "solving-20-5.1"];
+
+// How many dots actually go unmatched, per platform: .NET's Math.Sin/Cos go
+// to the C runtime, so glibc, Apple's libm and the UCRT need not agree with
+// each other either. A recorded platform is pinned — more OR fewer fails the
+// run. An unrecorded one passes and prints the line to paste in, so its
+// first CI run reports the numbers instead of this file guessing them.
 var divergenceBudgets = new Dictionary<string, Dictionary<string, int>>
 {
-    ["windows"] = new()
-    {
-        ["solving-20-3.3"] = 4,
-        ["solving-20-5.1"] = 65
-    }
+    // three dots of thirty sit in a different band, mid-scramble
+    ["windows"] = new() { ["solving-20-5.1"] = 3 }
 };
 
 var platform = OperatingSystem.IsWindows() ? "windows"
@@ -66,9 +61,6 @@ var platform = OperatingSystem.IsWindows() ? "windows"
     : OperatingSystem.IsLinux() ? "linux"
     : "other";
 var recorded = divergenceBudgets.TryGetValue(platform, out var budget) ? budget : null;
-// Cases allowed to drift at all. Only rubik at 20px qualifies; everything
-// else must match on every platform, recorded or not.
-var knownDivergences = recorded ?? divergenceBudgets["windows"];
 
 var states = Enum.GetValues<OrbState>().ToDictionary(s => s.ToString().ToLowerInvariant());
 var failures = new List<string>();
@@ -132,17 +124,55 @@ foreach (var c in root.GetProperty("cases").EnumerateArray())
         continue;
     }
 
-    // Dot stride 6: x, y, z, r, white, a. Dots are in draw order.
+    // Dot stride 6: x, y, z, r, white, a.
+    //
+    // The golden file stores one particular draw order, but only part of it
+    // is specified behaviour. What the painter promises is "far to near";
+    // between dots at the same depth — `ring` is face-on, so its whole band
+    // sits at one z — the order is whatever the sort happened to leave, and
+    // one ulp of libm difference reshuffles it without moving a pixel.
+    // Pinning the exact sequence would therefore fail on a platform whose
+    // libm rounds differently while drawing an identical picture. So check
+    // the two things that are real: the frame is z-sorted, and it holds the
+    // same dots.
+    var gotDots = new List<double[]>(frame.Dots.Count);
+    var wantDots = new List<double[]>(frame.Dots.Count);
     for (var i = 0; i < frame.Dots.Count; i++)
     {
         var d = frame.Dots[i];
         var b = i * 6;
-        Near($"{key}.dot[{i}].x", d.X, expectDots[b].GetDouble());
-        Near($"{key}.dot[{i}].y", d.Y, expectDots[b + 1].GetDouble());
-        Near($"{key}.dot[{i}].z", d.Z, expectDots[b + 2].GetDouble());
-        Near($"{key}.dot[{i}].r", d.R, expectDots[b + 3].GetDouble());
-        Near($"{key}.dot[{i}].white", d.White, expectDots[b + 4].GetDouble());
-        Near($"{key}.dot[{i}].a", d.A, expectDots[b + 5].GetDouble());
+        gotDots.Add([d.X, d.Y, d.Z, d.R, d.White, d.A]);
+        wantDots.Add([
+            expectDots[b].GetDouble(), expectDots[b + 1].GetDouble(), expectDots[b + 2].GetDouble(),
+            expectDots[b + 3].GetDouble(), expectDots[b + 4].GetDouble(), expectDots[b + 5].GetDouble()
+        ]);
+    }
+
+    for (var i = 1; i < gotDots.Count; i++)
+        if (gotDots[i][2] < gotDots[i - 1][2])
+            failures.Add($"{key}: not z-sorted at dot[{i}] ({gotDots[i][2]} after {gotDots[i - 1][2]})");
+
+    // Matched by value, not by index or sort key: the golden stores 6
+    // decimals and the port has full precision, so any comparator ordering on
+    // a raw coordinate pairs them up wrong the moment two dots agree to 6
+    // decimals. ponytail: O(n^2) over at most 600 dots, ~13M compares for the
+    // whole run. Bucket by z if it ever matters.
+    var pool = new List<int>(gotDots.Count);
+    for (var i = 0; i < gotDots.Count; i++) pool.Add(i);
+
+    foreach (var w in wantDots)
+    {
+        checkedValues += 6;
+        var hit = pool.FindIndex(j => Fits(gotDots[j], w));
+        if (hit >= 0)
+        {
+            pool.RemoveAt(hit);
+            continue;
+        }
+        perCase[key] = perCase.GetValueOrDefault(key) + 1;
+        if (failures.Count < 12 && !driftAllowed.Contains(key))
+            failures.Add($"{key}: no dot matches x={w[0]:F6} y={w[1]:F6} z={w[2]:F6} " +
+                         $"r={w[3]:F6} white={w[4]:F6} a={w[5]:F6}");
     }
 
     // Line stride 7: x1, y1, x2, y2, white, a, w.
@@ -160,39 +190,48 @@ foreach (var c in root.GetProperty("cases").EnumerateArray())
     }
 }
 
+/// All six values within tolerance: the same dot, painted the same way.
+bool Fits(double[] a, double[] b)
+{
+    for (var k = 0; k < 6; k++)
+        if (Math.Abs(a[k] - b[k]) > tolerance) return false;
+    return true;
+}
+
 void Near(string what, double got, double want)
 {
     checkedValues++;
     if (Math.Abs(got - want) <= tolerance) return;
     perCase[currentCase] = perCase.GetValueOrDefault(currentCase) + 1;
-    if (failures.Count < 12 && !knownDivergences.ContainsKey(currentCase))
+    if (failures.Count < 12 && !driftAllowed.Contains(currentCase))
         failures.Add($"{what}: {got.ToString("R", CultureInfo.InvariantCulture)} != " +
                      $"{want.ToString("R", CultureInfo.InvariantCulture)} " +
                      $"(delta {Math.Abs(got - want).ToString("G4", CultureInfo.InvariantCulture)})");
 }
 
-// Anything outside the drift-allowed set is a plain failure on every
-// platform. Inside it, a recorded platform is pinned to the exact count and
-// an unrecorded one just reports what it saw.
+// Outside the drift-allowed set, any mismatch is a plain failure. Inside
+// it, a recorded platform is pinned to its exact count.
 var unexpected = perCase
-    .Where(kv => !knownDivergences.ContainsKey(kv.Key) ||
+    .Where(kv => !driftAllowed.Contains(kv.Key) ||
                  (recorded != null && recorded.GetValueOrDefault(kv.Key) != kv.Value))
     .ToList();
-var missing = recorded?.Where(kv => !perCase.ContainsKey(kv.Key)).ToList() ?? [];
+var missing = recorded?.Where(kv => perCase.GetValueOrDefault(kv.Key) != kv.Value).ToList() ?? [];
 
-foreach (var (k, _) in knownDivergences.OrderBy(kv => kv.Key))
+foreach (var k in driftAllowed.Order())
 {
     var seen = perCase.GetValueOrDefault(k);
     if (seen != 0)
-        Console.WriteLine($"known libm divergence on {platform}: {k} ({seen} values) — see the note in Program.cs");
+        Console.WriteLine($"known libm divergence on {platform}: {k} " +
+                          $"({seen} unmatched dots) — see the note in Program.cs");
 }
 
 if (recorded == null)
     Console.WriteLine($"no recorded budget for {platform}; to pin it, add to divergenceBudgets:" +
                       Environment.NewLine +
                       $"    [\"{platform}\"] = new() {{ " +
-                      string.Join(", ", knownDivergences.Keys.OrderBy(k => k)
-                          .Select(k => $"[\"{k}\"] = {perCase.GetValueOrDefault(k)}")) + " },");
+                      string.Join(", ", driftAllowed.Order()
+                          .Where(k => perCase.GetValueOrDefault(k) != 0)
+                          .Select(k => $"[\"{k}\"] = {perCase[k]}")) + " },");
 
 if (unexpected.Count == 0 && missing.Count == 0)
 {
@@ -203,7 +242,7 @@ if (unexpected.Count == 0 && missing.Count == 0)
 Console.Error.WriteLine($"FAIL — over {cases} cases / {checkedValues} values");
 foreach (var f in failures) Console.Error.WriteLine("  " + f);
 foreach (var (k, v) in unexpected.OrderByDescending(kv => kv.Value))
-    Console.Error.WriteLine($"  {k}: {v} mismatches (expected {recorded?.GetValueOrDefault(k) ?? 0})");
-foreach (var (k, v) in missing)
-    Console.Error.WriteLine($"  {k}: now matches exactly — the {v}-value divergence is gone, update the budget");
+    Console.Error.WriteLine($"  {k}: {v} unmatched dots (expected {recorded?.GetValueOrDefault(k) ?? 0})");
+foreach (var (k, v) in missing.Where(kv => !unexpected.Any(u => u.Key == kv.Key)))
+    Console.Error.WriteLine($"  {k}: {perCase.GetValueOrDefault(k)} unmatched dots, budget says {v} — update it");
 return 1;
