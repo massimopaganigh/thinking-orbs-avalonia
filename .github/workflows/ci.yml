@@ -39,7 +39,7 @@ jobs:
         if: runner.os == 'Windows'
         run: dotnet run --project demo/ThinkingOrbs.Demo -c Release --no-build -- --snapshot artifacts/snapshots 0.6
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: runner.os == 'Windows'
         with:
           name: contact-sheets
