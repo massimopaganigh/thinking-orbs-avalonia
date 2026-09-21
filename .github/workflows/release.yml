@@ -39,11 +39,20 @@ jobs:
         with:
           name: nupkg
           path: artifacts/*.nupkg
+          if-no-files-found: error
 
       # Pushing is opt-in: without the secret the job still builds, checks and
       # publishes the artifact, so a tag is never blocked on credentials.
       - name: Push to NuGet
+        shell: pwsh
         env:
           NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
         if: env.NUGET_API_KEY != ''
-        run: dotnet nuget push "artifacts/*.nupkg" -s https://api.nuget.org/v3/index.json -k "$env:NUGET_API_KEY" --skip-duplicate
+        run: |
+          # `dotnet nuget push` does not expand wildcards, and PowerShell does
+          # not expand them for native commands either, so the pattern arrives
+          # verbatim and the push fails with "File does not exist". Resolve it.
+          $pkg = @(Get-ChildItem artifacts/*.nupkg)
+          if ($pkg.Count -ne 1) { throw "expected exactly one nupkg, found $($pkg.Count)" }
+          dotnet nuget push $pkg[0].FullName `
+            -s https://api.nuget.org/v3/index.json -k $env:NUGET_API_KEY --skip-duplicate
